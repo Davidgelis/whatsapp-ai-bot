@@ -31,14 +31,12 @@ app.get('/webhook', (req, res) => {
   const verifyToken = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode && verifyToken && mode === 'subscribe' &&
-      verifyToken === process.env.WHATSAPP_VERIFY_TOKEN) {
-    console.log('WEBHOOK_VERIFIED');
-    return res.status(200).send(challenge);
-  }
-
-  // If they didn't match
-  return res.sendStatus(403);
+  if (mode && token && mode === 'subscribe' &&
+    token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  console.log('WEBHOOK_VERIFIED');
+  return res.status(200).send(challenge);
+}
+return res.sendStatus(403);
 });
 
 // 5) Messages POST route (WhatsApp sends messages here)
