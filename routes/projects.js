@@ -17,7 +17,7 @@ router.post('/projects', async (req, res) => {
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [project_name, whatsapp_phone_number_id, whatsapp_token, system_prompt || null]
     );
-    // If the request accepts HTML, redirect back to the admin dashboard
+    // If the client accepts HTML, redirect back to the admin dashboard
     if (req.accepts('html')) {
       return res.redirect('/admin');
     }
@@ -28,9 +28,8 @@ router.post('/projects', async (req, res) => {
   }
 });
 
-// (The remaining endpoints remain unchanged.)
-
 // Get all projects
+// Endpoint: GET /admin/projects
 router.get('/projects', async (req, res) => {
   try {
     const result = await pool.query(`SELECT * FROM projects ORDER BY created_at DESC`);
@@ -42,6 +41,7 @@ router.get('/projects', async (req, res) => {
 });
 
 // Get a single project by ID
+// Endpoint: GET /admin/projects/:id
 router.get('/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -57,6 +57,7 @@ router.get('/projects/:id', async (req, res) => {
 });
 
 // Update a project by ID
+// Endpoint: PUT /admin/projects/:id
 router.put('/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -83,6 +84,7 @@ router.put('/projects/:id', async (req, res) => {
 });
 
 // Delete a project by ID
+// Endpoint: DELETE /admin/projects/:id
 router.delete('/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -94,6 +96,47 @@ router.delete('/projects/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting project:', err);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get project details along with conversation logs
+// Endpoint: GET /admin/projects/:id/details
+router.get('/projects/:id/details', async (req, res) => {
+  try {
+    const id = req.params.id;
+    // Retrieve project details
+    const projectResult = await pool.query(`SELECT * FROM projects WHERE id = $1`, [id]);
+    if (projectResult.rows.length === 0) {
+      return res.status(404).send('Project not found');
+    }
+    const project = projectResult.rows[0];
+    // Retrieve conversation logs for this project
+    const messagesResult = await pool.query(
+      `SELECT * FROM messages WHERE project_id = $1 ORDER BY timestamp DESC`,
+      [id]
+    );
+    const conversations = messagesResult.rows;
+    res.render('project-details', { project, conversations });
+  } catch (err) {
+    console.error('Error retrieving project details:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Update project system prompt (via HTML form submission)
+// Endpoint: POST /admin/projects/:id/update
+router.post('/projects/:id/update', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { system_prompt } = req.body;
+    await pool.query(
+      `UPDATE projects SET system_prompt = $1, updated_at = NOW() WHERE id = $2`,
+      [system_prompt, id]
+    );
+    res.redirect(`/admin/projects/${id}/details`);
+  } catch (err) {
+    console.error('Error updating project prompt:', err);
+    res.status(500).send('Internal Server Error');
   }
 });
 

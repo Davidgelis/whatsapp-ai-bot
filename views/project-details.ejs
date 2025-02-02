@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Project Details - <%= project.project_name %></title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .container { max-width: 800px; margin: auto; }
+    h1, h2 { text-align: center; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    table, th, td { border: 1px solid #ccc; }
+    th, td { padding: 10px; text-align: left; }
+    form { margin-top: 20px; }
+    label { display: block; margin-top: 10px; }
+    textarea { width: 100%; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Project Details: <%= project.project_name %></h1>
+    <h2>Update System Prompt</h2>
+    <form action="/admin/projects/<%= project.id %>/update" method="POST">
+      <label for="system_prompt">System Prompt:</label>
+      <textarea id="system_prompt" name="system_prompt" rows="4"><%= project.system_prompt %></textarea>
+      <br>
+      <button type="submit">Update Prompt</button>
+    </form>
+
+    <h2>Conversation Logs</h2>
+    <% if (conversations.length === 0) { %>
+      <p>No conversation logs available for this project.</p>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>Direction</th>
+            <th>Message</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% conversations.forEach(function(msg) { %>
+            <tr>
+              <td><%= msg.direction %></td>
+              <td><%= msg.message_body %></td>
+              <td><%= msg.timestamp %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+
+    <p style="text-align: center;"><a href="/admin">Back to Dashboard</a></p>
+  </div>
+</body>
+</html>
