@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Conversation Logs</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .message {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+    .message strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Conversation Logs</h1>
+  <% if (conversations.length === 0) { %>
+    <p>No conversation logs found.</p>
+  <% } else { %>
+    <% conversations.forEach(function(message) { %>
+      <div class="message">
+        <strong>Project:</strong> <%= message.project_name %><br>
+        <strong>Direction:</strong> <%= message.direction %><br>
+        <strong>From:</strong> <%= message.from_number %><br>
+        <strong>To:</strong> <%= message.to_number %><br>
+        <strong>Message:</strong> <%= message.message_body %><br>
+        <strong>Timestamp:</strong> <%= message.timestamp %>
+      </div>
+    <% }); %>
+  <% } %>
+</body>
+</html>
