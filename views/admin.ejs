@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+</head>
+<body>
+    <h1>Admin Dashboard</h1>
+
+    <h2>Create New Project</h2>
+    <form action="/admin/projects" method="POST">
+        <label>
+            Project Name:
+            <input type="text" name="project_name" required>
+        </label>
+        <br>
+        <label>
+            WhatsApp Phone Number ID:
+            <input type="text" name="whatsapp_phone_number_id" required>
+        </label>
+        <br>
+        <label>
+            WhatsApp Token:
+            <input type="text" name="whatsapp_token" required>
+        </label>
+        <br>
+        <label>
+            System Prompt:
+            <textarea name="system_prompt"></textarea>
+        </label>
+        <br>
+        <button type="submit">Create Project</button>
+    </form>
+
+    <h2>All Projects</h2>
+    <% if (projects.length === 0) { %>
+      <p>No projects found.</p>
+    <% } else { %>
+      <ul>
+        <% projects.forEach(function(project) { %>
+          <li>
+            <strong><%= project.project_name %></strong>
+            (ID: <%= project.id %>) - WhatsApp Phone Number ID: <%= project.whatsapp_phone_number_id %>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+</body>
+</html>

@@ -1,5 +1,5 @@
 // index.js
-require('dotenv').config(); // Ensure environment variables from .env are loaded (for local development)
+require('dotenv').config(); // Load environment variables
 console.log("DATABASE_URL =", process.env.DATABASE_URL);
 
 const express = require('express');
@@ -13,7 +13,7 @@ const { initDB } = require('./database');
 // Import the projects router from the routes folder
 const projectRoutes = require('./routes/projects');
 
-// 1) Enforce environment variables (optional but recommended)
+// Enforce environment variables (optional but recommended)
 if (!process.env.WHATSAPP_VERIFY_TOKEN) {
   throw new Error('Missing WHATSAPP_VERIFY_TOKEN');
 }
@@ -24,19 +24,41 @@ if (!process.env.WHATSAPP_TOKEN) {
   console.warn('Warning: Missing WHATSAPP_TOKEN. Sending messages will fail.');
 }
 
-// 2) Create Express app
+// Create Express app
 const app = express();
 app.use(bodyParser.json());
 
-// Mount the projects router on the /admin path
+// --- New code for front-end ---
+app.set('view engine', 'ejs');
+app.set('views', __dirname + '/views');
+// To parse URL-encoded bodies from HTML forms
+app.use(express.urlencoded({ extended: true }));
+// --- End new code ---
+
+// Mount the projects router on the /admin path (for API endpoints)
 app.use('/admin', projectRoutes);
 
-// 3) Basic route
+// Basic route
 app.get('/', (req, res) => {
   res.send('Hello from WhatsApp AI Bot!');
 });
 
-// 4) Verification GET route (WhatsApp calls this to verify your webhook)
+// --- New route for admin dashboard ---
+// This route will render our admin dashboard front-end.
+app.get('/admin', async (req, res) => {
+  try {
+    const { pool } = require('./database');
+    const result = await pool.query(`SELECT * FROM projects ORDER BY created_at DESC`);
+    const projects = result.rows;
+    res.render('admin', { projects });
+  } catch (err) {
+    console.error('Error rendering admin dashboard:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+// --- End new route ---
+
+// Verification GET route (for WhatsApp webhook)
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const verifyToken = req.query['hub.verify_token'];
@@ -50,16 +72,13 @@ app.get('/webhook', (req, res) => {
   return res.sendStatus(403);
 });
 
-// 5) Messages POST route (WhatsApp sends messages here)
+// Messages POST route (for WhatsApp messages)
 app.post('/webhook', async (req, res) => {
-  // Acknowledge we got the message
+  // Acknowledge receipt of the message
   res.sendStatus(200);
-
   try {
     const body = req.body;
     console.log('Incoming webhook:', JSON.stringify(body, null, 2));
-
-    // Check if it's a message event
     if (body.object &&
         body.entry && body.entry[0].changes &&
         body.entry[0].changes[0].value.messages) {
@@ -67,15 +86,11 @@ app.post('/webhook', async (req, res) => {
       const incomingMessage = body.entry[0].changes[0].value.messages[0];
       const from = incomingMessage.from;
       const msgBody = incomingMessage.text.body;
-
       console.log('User message:', msgBody);
-
-      // Call OpenAI if the key is available
       if (process.env.OPENAI_API_KEY) {
         const openai = new OpenAIApi(new Configuration({
           apiKey: process.env.OPENAI_API_KEY
         }));
-
         const aiResponse = await openai.createChatCompletion({
           model: "gpt-3.5-turbo",
           messages: [
@@ -83,11 +98,8 @@ app.post('/webhook', async (req, res) => {
             { role: 'user', content: msgBody }
           ]
         });
-
         const replyText = aiResponse.data.choices[0].message.content;
         console.log("AI reply:", replyText);
-
-        // Send the reply back via WhatsApp if the token is available
         if (process.env.WHATSAPP_TOKEN) {
           await axios.post(`https://graph.facebook.com/v15.0/${phoneNumberId}/messages`, {
             messaging_product: 'whatsapp',
@@ -107,15 +119,15 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// 6) Initialize the database tables on startup
+// Initialize the database tables on startup
 initDB().then(() => {
   console.log('All tables initialized or confirmed existing.');
 }).catch((err) => {
   console.error('Failed to initialize DB:', err);
-  process.exit(1); // Stop the server if DB initialization fails
+  process.exit(1);
 });
 
-// 7) Start server
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`AI Bot server is running on port ${PORT}`);

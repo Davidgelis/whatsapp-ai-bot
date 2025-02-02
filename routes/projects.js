@@ -10,22 +10,27 @@ router.post('/projects', async (req, res) => {
   try {
     const { project_name, whatsapp_phone_number_id, whatsapp_token, system_prompt } = req.body;
     if (!project_name || !whatsapp_phone_number_id || !whatsapp_token) {
-      return res.status(400).json({ error: 'Missing required fields: project_name, whatsapp_phone_number_id, or whatsapp_token.' });
+      return res.status(400).send('Missing required fields: project_name, whatsapp_phone_number_id, or whatsapp_token.');
     }
     const result = await pool.query(
       `INSERT INTO projects (project_name, whatsapp_phone_number_id, whatsapp_token, system_prompt) 
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [project_name, whatsapp_phone_number_id, whatsapp_token, system_prompt || null]
     );
+    // If the request accepts HTML, redirect back to the admin dashboard
+    if (req.accepts('html')) {
+      return res.redirect('/admin');
+    }
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Error creating project:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).send('Internal Server Error');
   }
 });
 
+// (The remaining endpoints remain unchanged.)
+
 // Get all projects
-// Endpoint: GET /admin/projects
 router.get('/projects', async (req, res) => {
   try {
     const result = await pool.query(`SELECT * FROM projects ORDER BY created_at DESC`);
@@ -37,7 +42,6 @@ router.get('/projects', async (req, res) => {
 });
 
 // Get a single project by ID
-// Endpoint: GET /admin/projects/:id
 router.get('/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -53,7 +57,6 @@ router.get('/projects/:id', async (req, res) => {
 });
 
 // Update a project by ID
-// Endpoint: PUT /admin/projects/:id
 router.put('/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -80,7 +83,6 @@ router.put('/projects/:id', async (req, res) => {
 });
 
 // Delete a project by ID
-// Endpoint: DELETE /admin/projects/:id
 router.delete('/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
