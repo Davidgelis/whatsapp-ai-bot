@@ -1,9 +1,14 @@
 // index.js
+console.log("DATABASE_URL =", process.env.DATABASE_URL);
 
+require('dotenv').config(); // Ensure environment variables from .env are loaded (for local development)
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
 const { Configuration, OpenAIApi } = require('openai');
+
+// Import the database functions
+const { initDB } = require('./database');
 
 // 1) Enforce environment variables (optional but recommended)
 if (!process.env.WHATSAPP_VERIFY_TOKEN) {
@@ -32,11 +37,11 @@ app.get('/webhook', (req, res) => {
   const challenge = req.query['hub.challenge'];
 
   if (mode && verifyToken && mode === 'subscribe' &&
-    verifyToken === process.env.WHATSAPP_VERIFY_TOKEN) {
-  console.log('WEBHOOK_VERIFIED');
-  return res.status(200).send(challenge);
-}
-return res.sendStatus(403);
+      verifyToken === process.env.WHATSAPP_VERIFY_TOKEN) {
+    console.log('WEBHOOK_VERIFIED');
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
 });
 
 // 5) Messages POST route (WhatsApp sends messages here)
@@ -49,19 +54,17 @@ app.post('/webhook', async (req, res) => {
     console.log('Incoming webhook:', JSON.stringify(body, null, 2));
 
     // Check if it's a message event
-    // (Simplified check—adapt as needed)
     if (body.object &&
         body.entry && body.entry[0].changes &&
         body.entry[0].changes[0].value.messages) {
       const phoneNumberId = body.entry[0].changes[0].value.metadata.phone_number_id;
       const incomingMessage = body.entry[0].changes[0].value.messages[0];
-      const from = incomingMessage.from; // sender's phone
+      const from = incomingMessage.from;
       const msgBody = incomingMessage.text.body;
 
       console.log('User message:', msgBody);
 
-      // 6) Optionally call OpenAI (if you want AI responses)
-      // (Requires npm install openai and setting OPENAI_API_KEY)
+      // Call OpenAI if the key is available
       if (process.env.OPENAI_API_KEY) {
         const openai = new OpenAIApi(new Configuration({
           apiKey: process.env.OPENAI_API_KEY
@@ -78,7 +81,7 @@ app.post('/webhook', async (req, res) => {
         const replyText = aiResponse.data.choices[0].message.content;
         console.log("AI reply:", replyText);
 
-        // 7) Send the reply back via WhatsApp
+        // Send the reply back via WhatsApp if the token is available
         if (process.env.WHATSAPP_TOKEN) {
           await axios.post(`https://graph.facebook.com/v15.0/${phoneNumberId}/messages`, {
             messaging_product: 'whatsapp',
@@ -93,13 +96,20 @@ app.post('/webhook', async (req, res) => {
         }
       }
     }
-
   } catch (err) {
     console.error('Error handling message:', err);
   }
 });
 
-// 8) Start server
+// 6) Initialize the database tables on startup
+initDB().then(() => {
+  console.log('All tables initialized or confirmed existing.');
+}).catch((err) => {
+  console.error('Failed to initialize DB:', err);
+  process.exit(1); // Stop the server if DB initialization fails
+});
+
+// 7) Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`AI Bot server is running on port ${PORT}`);
