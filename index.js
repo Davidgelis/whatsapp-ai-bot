@@ -4,6 +4,7 @@ console.log("DATABASE_URL =", process.env.DATABASE_URL);
 
 const express = require('express');
 const bodyParser = require('body-parser');
+const session = require('express-session');
 const axios = require('axios');
 const { Configuration, OpenAIApi } = require('openai');
 
@@ -14,7 +15,7 @@ const { initDB } = require('./database');
 const projectRoutes = require('./routes/projects');
 const messageRoutes = require('./routes/messages');
 
-// Enforce environment variables (optional but recommended)
+// Enforce environment variables
 if (!process.env.WHATSAPP_VERIFY_TOKEN) {
   throw new Error('Missing WHATSAPP_VERIFY_TOKEN');
 }
@@ -29,6 +30,13 @@ if (!process.env.WHATSAPP_TOKEN) {
 const app = express();
 app.use(bodyParser.json());
 
+// Set up session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'yourSecretKey',
+  resave: false,
+  saveUninitialized: false
+}));
+
 // --- Set up view engine for front-end templates ---
 app.set('view engine', 'ejs');
 app.set('views', __dirname + '/views');
@@ -36,9 +44,43 @@ app.set('views', __dirname + '/views');
 app.use(express.urlencoded({ extended: true }));
 // --- End view engine setup ---
 
-// Mount the API routers on the /admin path
-app.use('/admin', projectRoutes);
-app.use('/admin', messageRoutes);
+// Authentication middleware
+function isAuthenticated(req, res, next) {
+  if (req.session && req.session.loggedIn) {
+    return next();
+  }
+  res.redirect('/login');
+}
+
+// --- Authentication Routes ---
+
+// Display login form
+app.get('/login', (req, res) => {
+  res.render('login', { error: null });
+});
+
+// Handle login form submission
+app.post('/login', (req, res) => {
+  const { email, password } = req.body;
+  if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
+    req.session.loggedIn = true;
+    req.session.adminEmail = email;
+    return res.redirect('/admin');
+  }
+  res.render('login', { error: 'Invalid credentials' });
+});
+
+// Logout route
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/login');
+});
+
+// --- End Authentication Routes ---
+
+// Protect admin routes with authentication middleware
+app.use('/admin', isAuthenticated, projectRoutes);
+app.use('/admin', isAuthenticated, messageRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
@@ -46,7 +88,7 @@ app.get('/', (req, res) => {
 });
 
 // Admin dashboard route
-app.get('/admin', async (req, res) => {
+app.get('/admin', isAuthenticated, async (req, res) => {
   try {
     const { pool } = require('./database');
     const result = await pool.query(`SELECT * FROM projects ORDER BY created_at DESC`);
@@ -78,20 +120,14 @@ app.post('/webhook', async (req, res) => {
   try {
     const body = req.body;
     console.log('Incoming webhook:', JSON.stringify(body, null, 2));
-
-    // Check if it's a message event
     if (body.object &&
         body.entry && body.entry[0].changes &&
         body.entry[0].changes[0].value.messages) {
-
-      // Extract details from the incoming message
       const phoneNumberId = body.entry[0].changes[0].value.metadata.phone_number_id;
       const incomingMessage = body.entry[0].changes[0].value.messages[0];
       const from = incomingMessage.from;
       const msgBody = incomingMessage.text.body;
       console.log('User message:', msgBody);
-
-      // Look up the project based on the phone number ID
       const { pool } = require('./database');
       const projectResult = await pool.query(
         `SELECT * FROM projects WHERE whatsapp_phone_number_id = $1`,
@@ -102,18 +138,12 @@ app.post('/webhook', async (req, res) => {
         return;
       }
       const project = projectResult.rows[0];
-
-      // Store the incoming message in the messages table
       await pool.query(
         `INSERT INTO messages (project_id, from_number, to_number, message_body, direction, timestamp) 
          VALUES ($1, $2, $3, $4, 'incoming', NOW())`,
         [project.id, from, phoneNumberId, msgBody]
       );
-
-      // Determine which system prompt to use
       const systemPrompt = project.system_prompt || 'You are a helpful AI bot.';
-
-      // Call OpenAI to get a reply
       if (process.env.OPENAI_API_KEY) {
         const openai = new OpenAIApi(new Configuration({
           apiKey: process.env.OPENAI_API_KEY
@@ -127,15 +157,11 @@ app.post('/webhook', async (req, res) => {
         });
         const replyText = aiResponse.data.choices[0].message.content;
         console.log("AI reply:", replyText);
-
-        // Store the outgoing message in the messages table
         await pool.query(
           `INSERT INTO messages (project_id, from_number, to_number, message_body, direction, timestamp) 
            VALUES ($1, $2, $3, $4, 'outgoing', NOW())`,
           [project.id, phoneNumberId, from, replyText]
         );
-
-        // Send the reply via WhatsApp using the project's WhatsApp token or fallback token
         const whatsappToken = project.whatsapp_token || process.env.WHATSAPP_TOKEN;
         if (whatsappToken) {
           await axios.post(`https://graph.facebook.com/v15.0/${phoneNumberId}/messages`, {
