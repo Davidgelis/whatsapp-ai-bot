@@ -14,6 +14,7 @@ const { initDB } = require('./database');
 // Import routers from the routes folder
 const projectRoutes = require('./routes/projects');
 const messageRoutes = require('./routes/messages');
+const analyticsRoutes = require('./routes/analytics');
 
 // Enforce environment variables
 if (!process.env.WHATSAPP_VERIFY_TOKEN) {
@@ -81,7 +82,7 @@ app.get('/logout', (req, res) => {
 // Protect admin routes with authentication middleware
 app.use('/admin', isAuthenticated, projectRoutes);
 app.use('/admin', isAuthenticated, messageRoutes);
-
+app.use('/admin', isAuthenticated, analyticsRoutes);
 // Basic route
 app.get('/', (req, res) => {
   res.send('Hello from WhatsApp AI Bot!');
