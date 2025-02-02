@@ -9,7 +9,7 @@ console.log("DATABASE_URL =", process.env.DATABASE_URL);
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // The following SSL option is generally used, but because we're also setting
-  // NODE_TLS_REJECT_UNAUTHORIZED=0 in .env, it should allow the connection.
+  // NODE_TLS_REJECT_UNAUTHORIZED=0 in .env (for local testing), it should allow the connection.
   ssl: {
     rejectUnauthorized: false
   },

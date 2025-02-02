@@ -1,7 +1,7 @@
 // index.js
+require('dotenv').config(); // Ensure environment variables from .env are loaded (for local development)
 console.log("DATABASE_URL =", process.env.DATABASE_URL);
 
-require('dotenv').config(); // Ensure environment variables from .env are loaded (for local development)
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
@@ -9,6 +9,9 @@ const { Configuration, OpenAIApi } = require('openai');
 
 // Import the database functions
 const { initDB } = require('./database');
+
+// Import the projects router from the routes folder
+const projectRoutes = require('./routes/projects');
 
 // 1) Enforce environment variables (optional but recommended)
 if (!process.env.WHATSAPP_VERIFY_TOKEN) {
@@ -24,6 +27,9 @@ if (!process.env.WHATSAPP_TOKEN) {
 // 2) Create Express app
 const app = express();
 app.use(bodyParser.json());
+
+// Mount the projects router on the /admin path
+app.use('/admin', projectRoutes);
 
 // 3) Basic route
 app.get('/', (req, res) => {
